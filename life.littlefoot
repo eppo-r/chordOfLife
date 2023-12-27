@@ -1,0 +1,130 @@
+/*
+By [Your Name]
+
+<metadata description="Conway's Game of Life with MIDI note generation on a 15x15 grid. Cells' positions determine the MIDI notes." target="Lightpad" tags="MIDI;GameOfLife;">
+    <modes>
+        <mode name="GameOfLife"/>
+    </modes>
+    <variables>
+        <variable name="MIDI_CHANNEL" displayName="MIDI Channel" type="int" min="1" max="16" value="1" displayMode="stepper" />
+        <variable name="STRIKE_VELOCITY" displayName="Strike Velocity" type="int" min="0" max="127" value="115" displayMode="stepper" />
+    </variables>
+</metadata>
+*/
+
+//==============================================================================
+// Constants
+const int PIXELS_PER_ROW = 15;
+const int GRID_AREA = PIXELS_PER_ROW * PIXELS_PER_ROW;
+const float MAX_TOUCH_POINT = 2.0;
+
+// Game state
+bool running;
+bool gridState[GRID_AREA];
+bool tempGrid[GRID_AREA];
+
+// Touch point
+float touchStartX, touchStartY;
+
+void initialise() {
+    running = true;
+    clearGrid();
+}
+
+void repaint() {
+    if (running) {
+        nextFrame();
+    }
+}
+
+void nextFrame() {
+    for (int x = 0; x < PIXELS_PER_ROW; x++) {
+        for (int y = 0; y < PIXELS_PER_ROW; y++) {
+            int index = x * PIXELS_PER_ROW + y;
+            int neighbours = countNeighbours(x, y);
+            bool currentState = gridState[index];
+            tempGrid[index] = (currentState && (neighbours == 2 || neighbours == 3)) || (!currentState && neighbours == 3);
+        }
+    }
+
+    for (int i = 0; i < GRID_AREA; i++) {
+        if (gridState[i] != tempGrid[i]) {
+            gridState[i] = tempGrid[i];
+            sendMidiNote(i / PIXELS_PER_ROW, i % PIXELS_PER_ROW, gridState[i]);
+        }
+    }
+
+    clearDisplay();
+    drawGrid();
+}
+
+void toggleCell(int x, int y) {
+    int index = x * PIXELS_PER_ROW + y;
+    gridState[index] = !gridState[index];
+    sendMidiNote(x, y, gridState[index]);
+}
+
+int countNeighbours(int x, int y) {
+    int count = 0;
+    for (int i = -1; i <= 1; i++) {
+        for (int j = -1; j <= 1; j++) {
+            if (i == 0 && j == 0) continue;
+            int nx = (x + i + PIXELS_PER_ROW) % PIXELS_PER_ROW;
+            int ny = (y + j + PIXELS_PER_ROW) % PIXELS_PER_ROW;
+            count += gridState[nx * PIXELS_PER_ROW + ny] ? 1 : 0;
+        }
+    }
+    return count;
+}
+
+void sendMidiNote(int x, int y, bool state) {
+    int note = mapCellToMidiNote(x * PIXELS_PER_ROW + y);
+    if (state) {
+        sendNoteOn(MIDI_CHANNEL, note, STRIKE_VELOCITY);
+    } else {
+        sendNoteOff(MIDI_CHANNEL, note, 0);
+    }
+}
+
+int mapCellToMidiNote(int index) {
+    return index % 127;
+}
+
+void drawGrid() {
+    for (int x = 0; x < PIXELS_PER_ROW; x++) {
+        for (int y = 0; y < PIXELS_PER_ROW; y++) {
+            int index = x * PIXELS_PER_ROW + y;
+            if (gridState[index]) {
+                fillPixel(makeARGB(255, 255, 255, 255), x, y);
+            } else {
+                fillPixel(makeARGB(255, 0, 0, 0), x, y);
+            }
+        }
+    }
+}
+
+void clearGrid() {
+    for (int i = 0; i < GRID_AREA; i++) {
+        gridState[i] = false;
+    }
+}
+
+void touchStart(int index, float x, float y, float z, float vz) {
+    if (index != 1) return;
+    int gridX = mapTouchToGrid(x);
+    int gridY = mapTouchToGrid(y);
+    toggleCell(gridX, gridY); // Passing integers to toggleCell
+}
+
+void touchMove(int index, float x, float y, float z, float vz) {
+    if (index != 1) return;
+    int gridX = mapTouchToGrid(x);
+    int gridY = mapTouchToGrid(y);
+    toggleCell(gridX, gridY); // Passing integers to toggleCell
+}
+
+int mapTouchToGrid(float touch) {
+    return int(touch * PIXELS_PER_ROW / MAX_TOUCH_POINT);
+}
+
+// Implement any other utility functions you might need for the Lightpad Block.
