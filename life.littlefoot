@@ -18,10 +18,11 @@ const int PIXELS_PER_ROW = 15;
 const int GRID_AREA = PIXELS_PER_ROW * PIXELS_PER_ROW;
 const float MAX_TOUCH_POINT = 2.0;
 
-// Game state
 bool running;
 bool gridState[GRID_AREA];
 bool tempGrid[GRID_AREA];
+
+int MAIN_COLOR;
 
 // Touch point
 float touchStartX, touchStartY;
@@ -29,12 +30,21 @@ float touchStartX, touchStartY;
 void initialise() {
     running = true;
     clearGrid();
+    MAIN_COLOR = makeARGB(255, 255, 255, 255);
 }
 
 void repaint() {
     if (running) {
         nextFrame();
+    } else {
+        drawGrid(); // Redraw the grid when paused
     }
+}
+
+void handleButtonDown(int index) {
+    running = !running;
+    MAIN_COLOR = running ? makeARGB(255, 255, 255, 255) : makeARGB(255, 255, 0, 0); // Color change based on running state
+    drawGrid(); // Redraw grid to reflect color change immediately
 }
 
 void nextFrame() {
@@ -62,6 +72,7 @@ void toggleCell(int x, int y) {
     int index = x * PIXELS_PER_ROW + y;
     gridState[index] = !gridState[index];
     sendMidiNote(x, y, gridState[index]);
+    fillPixel(MAIN_COLOR, x, y); // Draw the cell immediately after toggling
 }
 
 int countNeighbours(int x, int y) {
@@ -95,7 +106,7 @@ void drawGrid() {
         for (int y = 0; y < PIXELS_PER_ROW; y++) {
             int index = x * PIXELS_PER_ROW + y;
             if (gridState[index]) {
-                fillPixel(makeARGB(255, 255, 255, 255), x, y);
+                fillPixel(MAIN_COLOR, x, y);
             } else {
                 fillPixel(makeARGB(255, 0, 0, 0), x, y);
             }
@@ -110,10 +121,10 @@ void clearGrid() {
 }
 
 void touchStart(int index, float x, float y, float z, float vz) {
-    if (index != 1) return;
+    if (index != 1 || running) return;
     int gridX = mapTouchToGrid(x);
     int gridY = mapTouchToGrid(y);
-    toggleCell(gridX, gridY); // Passing integers to toggleCell
+    toggleCell(gridX, gridY);
 }
 
 void touchMove(int index, float x, float y, float z, float vz) {
